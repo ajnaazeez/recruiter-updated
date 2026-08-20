@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:recruiter_talentbay/core/services/subscription_service.dart';
 import 'package:recruiter_talentbay/features/auth/controllers/auth_controller.dart';
 import 'package:recruiter_talentbay/theme/app_colors.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PremiumSubscriptionScreen extends ConsumerStatefulWidget {
   const PremiumSubscriptionScreen({super.key});
@@ -77,39 +78,38 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
               const SizedBox(height: 40),
 
               // Subscribe Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    elevation: 0,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.zero, // Sharp corners
-                    ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  elevation: 0,
+                  minimumSize: const Size(double.infinity, 56),
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero, // Sharp corners
                   ),
-                  onPressed: _isLoading
-                      ? null
-                      : () => _handleSubscribe(context, ref, plans),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
                 ),
+                onPressed: _isLoading
+                    ? null
+                    : () => _handleSubscribe(context, ref, plans),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          letterSpacing: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
               ),
               const SizedBox(height: 24),
               Text(
@@ -118,6 +118,56 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
                   color: AppColors.textSubLight,
                 ),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      final Uri url = Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Could not launch Terms of Use')),
+                          );
+                        }
+                      }
+                    },
+                    child: Text(
+                      'Terms of Use (EULA)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '  |  ',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSubLight,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () async {
+                      final Uri url = Uri.parse('https://www.waqtixllp.com/privacy-and-policy');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Could not launch Privacy Policy')),
+                          );
+                        }
+                      }
+                    },
+                    child: Text(
+                      'Privacy Policy',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
             ],

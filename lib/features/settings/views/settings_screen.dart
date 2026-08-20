@@ -8,6 +8,7 @@ import 'about_screen.dart';
 import 'package:recruiter_talentbay/core/widgets/app_dialogs.dart';
 import 'package:recruiter_talentbay/features/auth/controllers/auth_controller.dart';
 import 'package:recruiter_talentbay/features/auth/data/auth_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/notification_controller.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -236,39 +237,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       const SizedBox(height: 16),
 
                       // Continue / Subscribe Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colorScheme.primary,
-                            foregroundColor: colorScheme.onPrimary,
-                            elevation: 0,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero,
-                            ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          elevation: 0,
+                          minimumSize: const Size(double.infinity, 50),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero,
                           ),
-                          onPressed: _isLoading
-                              ? null
-                              : () => _handleSubscribe(context, ref, plans),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(
-                                  'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 14,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
                         ),
+                        onPressed: _isLoading
+                            ? null
+                            : () => _handleSubscribe(context, ref, plans),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 1.2,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -277,6 +277,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           color: AppColors.textSubLight,
                         ),
                         textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: () async {
+                              final Uri url = Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/');
+                              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not launch Terms of Use')),
+                                  );
+                                }
+                              }
+                            },
+                            child: Text(
+                              'Terms of Use (EULA)',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '  |  ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSubLight,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              final Uri url = Uri.parse('https://www.waqtixllp.com/privacy-and-policy');
+                              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not launch Privacy Policy')),
+                                  );
+                                }
+                              }
+                            },
+                            child: Text(
+                              'Privacy Policy',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
