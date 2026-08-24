@@ -1,0 +1,40 @@
+# Files and directories to ignore in Git
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.project
+.settings/
+.vscode/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# Node/Firebase (Cloud Functions)
+node_modules/
+**/node_modules/
+functions/lib/
+functions/node_modules/
+
+# Android
+android/local.properties
+android/key.properties
+
+# iOS
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# Generated platform files that are recreated during builds
+/windows/flutter/ephemeral/
+/linux/flutter/ephemeral/
+/macos/Flutter/ephemeral/
