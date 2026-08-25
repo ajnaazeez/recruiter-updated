@@ -46,9 +46,10 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Post a New Job')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -331,6 +332,9 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
               SizedBox(
                 height: 50,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  ),
                   onPressed: isLoading ? null : _submitJob,
                   child: isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -341,6 +345,7 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
           ),
         ),
       ),
+     ),
     );
   }
 

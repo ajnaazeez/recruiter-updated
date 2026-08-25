@@ -77,6 +77,9 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
               _buildFeatureSection(context),
               const SizedBox(height: 40),
 
+              // Dynamic summary of selected plan's benefits
+              _buildPurchaseDetailsSummary(context, plans[_selectedPlanIndex]),
+
               // Subscribe Button
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -371,6 +374,104 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPurchaseDetailsSummary(BuildContext context, SubscriptionPlan selectedPlan) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.grey[100],
+        border: Border.all(
+          color: colorScheme.primary.withOpacity(0.3),
+          width: 1,
+        ),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SELECTED PLAN DETAILS',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: colorScheme.primary,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '${selectedPlan.name.toUpperCase()} (${selectedPlan.durationDisplay.toUpperCase()})',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '₹${selectedPlan.amountInRupees.toStringAsFixed(0)}',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24, thickness: 1),
+          Text(
+            'WHAT YOU WILL RECEIVE FOR ₹${selectedPlan.amountInRupees.toStringAsFixed(0)}:',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isDark ? AppColors.textSubDark : AppColors.textSubLight,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildDetailBenefitItem(context, 'Full access to post unlimited job vacancies'),
+          _buildDetailBenefitItem(context, 'Unlock and view all profiles of applied candidates'),
+          _buildDetailBenefitItem(context, 'Message and chat directly with candidates within the app'),
+          _buildDetailBenefitItem(context, 'Shortlist, hire, or reject candidate applications'),
+          _buildDetailBenefitItem(context, 'Send direct invitations to candidates to apply for your jobs'),
+          _buildDetailBenefitItem(context, 'Reopen and repost closed job positions'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailBenefitItem(BuildContext context, String text) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            color: theme.colorScheme.primary,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
         ],
