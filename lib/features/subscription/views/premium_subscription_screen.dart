@@ -7,7 +7,12 @@ import 'package:recruiter_talentbay/theme/app_colors.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PremiumSubscriptionScreen extends ConsumerStatefulWidget {
-  const PremiumSubscriptionScreen({super.key});
+  final bool includeTrial;
+
+  const PremiumSubscriptionScreen({
+    super.key,
+    this.includeTrial = false,
+  });
 
   @override
   ConsumerState<PremiumSubscriptionScreen> createState() => _PremiumSubscriptionScreenState();
@@ -15,13 +20,24 @@ class PremiumSubscriptionScreen extends ConsumerStatefulWidget {
 
 class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionScreen> {
   bool _isLoading = false;
-  int _selectedPlanIndex = 2; // Default to Yearly Plan (best value)
+  int _selectedPlanIndex = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    // The trial is the first item only for eligible Android users.
+    if (widget.includeTrial) {
+      _selectedPlanIndex = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final plans = SubscriptionService.plans;
+    final plans = widget.includeTrial
+        ? [SubscriptionService.trialPlan, ...SubscriptionService.plans]
+        : SubscriptionService.plans;
 
     return Scaffold(
       backgroundColor: colorScheme.background,
@@ -105,7 +121,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
                         ),
                       )
                     : Text(
-                        'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)}',
+                        'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)} / ${plans[_selectedPlanIndex].durationDisplay.toLowerCase()}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 16,
