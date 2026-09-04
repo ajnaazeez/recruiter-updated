@@ -1,18 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/recruiter_model.dart';
 import '../../company/models/company_model.dart';
 
 final authRepositoryProvider = Provider(
-  (ref) => AuthRepository(FirebaseAuth.instance, FirebaseFirestore.instance),
+  (ref) => AuthRepository(
+    FirebaseAuth.instance,
+    FirebaseFirestore.instance,
+    FirebaseFunctions.instanceFor(region: 'us-central1'),
+  ),
 );
 
 class AuthRepository {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
-  AuthRepository(this._auth, this._firestore);
+  AuthRepository(
+    this._auth,
+    this._firestore, [
+    FirebaseFunctions? functions,
+  ]) : _functions =
+            functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
   Stream<User?> get authStateChanges => _auth.userChanges();
   User? get currentUser => _auth.currentUser;
@@ -101,6 +112,46 @@ class AuthRepository {
     );
   }
 
+  Future<void> reauthenticateWithEmailPassword(
+    String email,
+    String password,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No user is currently signed in.',
+      );
+    }
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: password,
+    );
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  Future<void> reauthenticateWithPhoneCredential(
+    PhoneAuthCredential credential,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No user is currently signed in.',
+      );
+    }
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  Future<void> deleteAccountViaCloudFunction() async {
+    final callable = _functions.httpsCallable('deleteUserAccount');
+    final result = await callable.call();
+    final data = result.data;
+    if (data is Map && data['success'] == false) {
+      throw Exception(data['message'] ?? 'Failed to delete account.');
+    }
+  }
+
   Future<void> createRecruiterProfile(RecruiterModel recruiter) async {
     await _firestore
         .collection('recruiters')
@@ -183,3 +234,4 @@ class AuthRepository {
     await _auth.sendPasswordResetEmail(email: email);
   }
 }
+

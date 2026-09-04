@@ -1,30 +1,42 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:recruiter_talentbay/main.dart';
+import 'package:recruiter_talentbay/core/widgets/app_dialogs.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Delete account confirmation dialog displays correct warning text and buttons', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showDeleteAccountConfirmationDialog(context),
+              child: const Text('OPEN DIALOG'),
+            ),
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Tap to open dialog
+    await tester.tap(find.text('OPEN DIALOG'));
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify dialog title, warning body, and action buttons
+    expect(find.text('Delete your account?'), findsOneWidget);
+    expect(
+      find.text(
+        'Deleting your account will permanently remove your TalentBay account and associated personal data. This action cannot be undone.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('CANCEL'), findsOneWidget);
+    expect(find.text('DELETE ACCOUNT'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Tap cancel and verify dialog closes
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete your account?'), findsNothing);
   });
 }
+

@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class AuthExceptionHandler {
   static String generateErrorMessage(dynamic error) {
@@ -28,8 +29,12 @@ class AuthExceptionHandler {
           return 'Network error. Please check your internet connection.';
         case 'invalid-credential':
           return 'Invalid credentials. Please check your details and try again.';
-        case 'wrong-role': // Custom error code we saw in controller
+        case 'wrong-role':
           return 'User is invalid in this application.';
+        case 'requires-recent-login':
+          return 'For security, please confirm your credentials before completing this action.';
+        case 'user-token-expired':
+          return 'Your session has expired. Please log in again.';
         // App Check / Security errors
         case 'invalid-app-credential':
         case 'permission-denied':
@@ -38,7 +43,18 @@ class AuthExceptionHandler {
         case 'too-many-requests':
           return 'Too many attempts. Please try again later.';
         default:
-          return error.message ?? 'An unknown authentication error occurred.';
+          return error.message ?? 'An authentication error occurred.';
+      }
+    } else if (error is FirebaseFunctionsException) {
+      switch (error.code) {
+        case 'unauthenticated':
+          return 'Please sign in again to complete this action.';
+        case 'permission-denied':
+          return 'You do not have permission to perform this action.';
+        case 'unavailable':
+          return 'The service is temporarily unavailable. Please try again.';
+        default:
+          return error.message ?? 'A server error occurred. Please try again.';
       }
     } else if (error is FirebaseException) {
       if (error.code == 'permission-denied' ||
@@ -46,9 +62,13 @@ class AuthExceptionHandler {
           (error.message?.contains('App attestation failed') ?? false)) {
         return 'Security verification failed. Please try again later.';
       }
-      return error.message ?? 'A Firebase error occurred.';
+      return error.message ?? 'A Firebase service error occurred.';
+    } else if (error is Exception) {
+      final msg = error.toString().replaceFirst('Exception: ', '');
+      return msg;
     } else {
-      return error.toString();
+      return error?.toString() ?? 'An unexpected error occurred.';
     }
   }
 }
+

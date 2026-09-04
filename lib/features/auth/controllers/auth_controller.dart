@@ -7,6 +7,9 @@ import '../data/auth_repository.dart';
 import '../models/recruiter_model.dart';
 import '../../company/models/company_model.dart';
 import '../utils/auth_exception_handler.dart';
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/services/local_notification_service.dart';
+import '../../../core/services/notification_controller.dart';
 
 final authControllerProvider = NotifierProvider<AuthController, bool>(
   AuthController.new,
@@ -579,42 +582,207 @@ class AuthController extends Notifier<bool> {
   }
 
   Future<void> deleteAccount(BuildContext context) async {
-    state = true;
-    try {
-      final user = _authRepository.currentUser;
-      if (user != null) {
-        // Get recruiter profile to find company ID
-        final profile = await _authRepository.getRecruiterProfile(user.uid);
-
-        // 1. Delete user data (Firestore)
-        await _authRepository.deleteUserData(user.uid, profile?.companyId);
-
-        // 2. Delete Auth Account
-        try {
-          await user.delete();
-        } catch (e) {
-          // If auth deletion fails (e.g. requires-recent-login), sign them out locally
-          // so they don't get trapped without a profile.
-          await _authRepository.signOut();
-          rethrow;
-        }
-
-        // 3. Navigate handled by authStateChanges (User becomes null)
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account deleted successfully')),
-          );
-        }
+    if (state) return; // Prevent duplicate deletion requests
+    final user = _authRepository.currentUser;
+    if (user == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No active user session found.')),
+        );
       }
+      return;
+    }
+
+    state = true;
+    showAccountDeletionLoadingDialog(context);
+
+    try {
+      await _executeAccountDeletion(context, user);
     } catch (e) {
       if (context.mounted) {
-        final message = AuthExceptionHandler.generateErrorMessage(e);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        // Dismiss loading dialog if still visible
+        try {
+          Navigator.of(context, rootNavigator: true).pop();
+        } catch (_) {}
+
+        final errorMessage = AuthExceptionHandler.generateErrorMessage(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        );
       }
     } finally {
       state = false;
     }
   }
+
+  Future<void> _executeAccountDeletion(BuildContext context, User user) async {
+    try {
+      await _authRepository.deleteAccountViaCloudFunction();
+      await _finishSuccessfulDeletion(context, user);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login' ||
+          e.code == 'user-token-expired' ||
+          e.code == 'unauthenticated') {
+        await _handleReauthenticationAndRetry(context, user);
+      } else {
+        rethrow;
+      }
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('requires-recent-login') ||
+          msg.contains('unauthenticated') ||
+          msg.contains('recent-login')) {
+        await _handleReauthenticationAndRetry(context, user);
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> _handleReauthenticationAndRetry(
+    BuildContext context,
+    User user,
+  ) async {
+    if (!context.mounted) return;
+
+    // Pop the loading dialog first to allow user interaction
+    try {
+      Navigator.of(context, rootNavigator: true).pop();
+    } catch (_) {}
+
+    final email = user.email;
+    final phoneNumber = user.phoneNumber;
+
+    if (email != null && email.isNotEmpty) {
+      final password = await showReauthenticatePasswordDialog(
+        context,
+        email: email,
+      );
+      if (password != null && password.isNotEmpty && context.mounted) {
+        showAccountDeletionLoadingDialog(context);
+        await _authRepository.reauthenticateWithEmailPassword(email, password);
+        await _authRepository.deleteAccountViaCloudFunction();
+        await _finishSuccessfulDeletion(context, user);
+      }
+    } else if (phoneNumber != null && phoneNumber.isNotEmpty) {
+      String? verificationId;
+      await _authRepository.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          await _authRepository.reauthenticateWithPhoneCredential(credential);
+        },
+        verificationFailed: (e) {
+          throw e;
+        },
+        codeSent: (vId, token) {
+          verificationId = vId;
+        },
+        codeAutoRetrievalTimeout: (vId) {
+          verificationId = vId;
+        },
+      );
+
+      if (context.mounted) {
+        final otp = await showReauthenticatePhoneDialog(
+          context,
+          phoneNumber: phoneNumber,
+        );
+        if (otp != null &&
+            otp.length == 6 &&
+            verificationId != null &&
+            context.mounted) {
+          showAccountDeletionLoadingDialog(context);
+          final cred = PhoneAuthProvider.credential(
+            verificationId: verificationId!,
+            smsCode: otp,
+          );
+          await _authRepository.reauthenticateWithPhoneCredential(cred);
+          await _authRepository.deleteAccountViaCloudFunction();
+          await _finishSuccessfulDeletion(context, user);
+        }
+      }
+    } else {
+      throw Exception(
+        'Session expired. Please log in again to delete your account.',
+      );
+    }
+  }
+
+  Future<void> _finishSuccessfulDeletion(BuildContext context, User user) async {
+    // 1. Cancel local notifications
+    try {
+      await LocalNotificationService.cancelAll();
+    } catch (_) {}
+
+    // 2. Clear user-specific shared preferences
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      await prefs.remove('notifications_enabled');
+    } catch (_) {}
+
+    // 3. Invalidate profile provider
+    ref.invalidate(recruiterProfileProvider(user.uid));
+
+    // 4. Sign out locally
+    await _authRepository.signOut();
+
+    if (context.mounted) {
+      try {
+        Navigator.of(context, rootNavigator: true).pop();
+      } catch (_) {}
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle_outline, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Your account has been permanently deleted.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green[700],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      );
+    }
+  }
 }
+

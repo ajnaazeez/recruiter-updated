@@ -207,4 +207,9 @@ class LocalNotificationService {
       payload: payload,
     );
   }
+
+  static Future<void> cancelAll() async {
+    await _flutterLocalNotificationsPlugin.cancelAll();
+  }
 }
+

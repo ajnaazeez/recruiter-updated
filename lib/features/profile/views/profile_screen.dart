@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:csc_picker_plus/csc_picker_plus.dart';
 import '../../../../core/utils/country_codes.dart';
 import 'package:recruiter_talentbay/theme/app_colors.dart';
+import 'package:recruiter_talentbay/core/widgets/app_dialogs.dart';
 
 final companyProfileProvider = FutureProvider.family<CompanyModel?, String>((
   ref,
@@ -385,31 +386,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('DELETE ACCOUNT'),
-                              content: const Text(
-                                'Are you absolutely sure? This action cannot be undone.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(false),
-                                  child: const Text('CANCEL'),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.error,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(true),
-                                  child: const Text('DELETE'),
-                                ),
-                              ],
-                            ),
-                          );
+                          final confirm =
+                              await showDeleteAccountConfirmationDialog(context);
 
                           if (confirm == true && context.mounted) {
                             ref

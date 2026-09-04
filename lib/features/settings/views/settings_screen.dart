@@ -243,6 +243,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: 40),
 
+          // Account Section (Apple App Store Guideline 5.1.1(v) Compliance)
+          _buildSectionTitle(context, 'ACCOUNT'),
+          const SizedBox(height: 16),
+          _buildListTile(
+            context: context,
+            title: 'Delete Account',
+            subtitle: 'Permanently remove your account and associated data',
+            icon: Icons.delete_forever_outlined,
+            isDestructive: true,
+            onTap: () async {
+              final confirmed =
+                  await showDeleteAccountConfirmationDialog(context);
+              if (confirmed == true && context.mounted) {
+                ref
+                    .read(authControllerProvider.notifier)
+                    .deleteAccount(context);
+              }
+            },
+          ),
+
+          const SizedBox(height: 40),
+
           // Logout
           OutlinedButton(
             onPressed: () async {
@@ -366,10 +388,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required IconData icon,
     String? subtitle,
     bool enabled = true,
+    bool isDestructive = false,
     VoidCallback? onTap,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textColor = enabled ? colorScheme.onSurface : AppColors.textSubLight;
+    final textColor = isDestructive
+        ? colorScheme.error
+        : (enabled ? colorScheme.onSurface : AppColors.textSubLight);
+    final iconColor = isDestructive
+        ? colorScheme.error
+        : (enabled ? colorScheme.primary : AppColors.disabledLight);
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
@@ -377,13 +405,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       onTap: onTap,
       leading: Icon(
         icon,
-        color: enabled ? colorScheme.primary : AppColors.disabledLight,
+        color: iconColor,
         size: 24,
       ),
       title: Text(
         title,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
+          fontWeight: isDestructive ? FontWeight.bold : FontWeight.w500,
           color: textColor,
         ),
       ),
@@ -392,7 +420,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle,
               style: Theme.of(
                 context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.textSubLight),
+              ).textTheme.bodySmall?.copyWith(
+                color: isDestructive
+                    ? colorScheme.error.withOpacity(0.8)
+                    : AppColors.textSubLight,
+              ),
             )
           : null,
     );
