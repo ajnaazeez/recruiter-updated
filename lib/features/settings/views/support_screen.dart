@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/app_colors.dart';
 
 class SupportScreen extends StatelessWidget {
@@ -9,10 +10,9 @@ class SupportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: colorScheme.background,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: Text(
           'SUPPORT',
@@ -23,21 +23,19 @@ class SupportScreen extends StatelessWidget {
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: colorScheme.onBackground),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => context.pop(),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      extendBodyBehindAppBar: true,
       body: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: size.height,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(flex: 2),
+              const SizedBox(height: 16),
 
               // 1. Header Icon
               Container(
@@ -50,7 +48,7 @@ class SupportScreen extends StatelessWidget {
                 child: Icon(
                   Icons.support_agent_outlined,
                   size: 64,
-                  color: colorScheme.onSurface,
+                  color: colorScheme.primary,
                 ),
               ),
 
@@ -62,7 +60,7 @@ class SupportScreen extends StatelessWidget {
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.5,
-                  color: colorScheme.onBackground,
+                  color: colorScheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -70,9 +68,9 @@ class SupportScreen extends StatelessWidget {
 
               // 3. Description
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
-                  'Have questions or need assistance?\nReach out to our support team.',
+                  'Have questions, feedback, or need assistance?\nReach out to our support team.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     height: 1.6,
                     color: AppColors.textSubLight,
@@ -90,26 +88,45 @@ class SupportScreen extends StatelessWidget {
                 icon: Icons.email_outlined,
                 label: 'EMAIL US',
                 value: 'support@talentbay.com',
+                onTap: () async {
+                  final Uri emailUri = Uri(
+                    scheme: 'mailto',
+                    path: 'support@talentbay.com',
+                    queryParameters: {'subject': 'TalentBay Recruiter Support Request'},
+                  );
+                  try {
+                    await launchUrl(emailUri, mode: LaunchMode.externalApplication);
+                  } catch (_) {}
+                },
               ),
-              const SizedBox(height: 24),
-              _buildContactItem(
-                context,
-                icon: Icons.phone_outlined,
-                label: 'CALL US',
-                value: '+1 (555) 123-4567',
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               _buildContactItem(
                 context,
                 icon: Icons.language_outlined,
                 label: 'VISIT WEBSITE',
-                value: 'www.talentbay.com',
+                value: 'www.waqtixllp.com',
+                onTap: () async {
+                  final Uri webUri = Uri.parse('https://www.waqtixllp.com');
+                  try {
+                    await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                  } catch (_) {}
+                },
+              ),
+              const SizedBox(height: 32),
+              _buildContactItem(
+                context,
+                icon: Icons.policy_outlined,
+                label: 'PRIVACY & POLICY',
+                value: 'www.waqtixllp.com/privacy-and-policy',
+                onTap: () async {
+                  final Uri privacyUri = Uri.parse('https://www.waqtixllp.com/privacy-and-policy');
+                  try {
+                    await launchUrl(privacyUri, mode: LaunchMode.externalApplication);
+                  } catch (_) {}
+                },
               ),
 
-              const Spacer(flex: 3),
-
-              // Bottom padding
-              const SizedBox(height: 24),
+              const SizedBox(height: 48),
             ],
           ),
         ),
@@ -122,32 +139,42 @@ class SupportScreen extends StatelessWidget {
     required IconData icon,
     required String label,
     required String value,
+    VoidCallback? onTap,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
-      children: [
-        Icon(icon, size: 24, color: AppColors.textSubLight),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.0,
-            color: AppColors.textSubLight,
-            fontSize: 10,
-          ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        child: Column(
+          children: [
+            Icon(icon, size: 28, color: colorScheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.0,
+                color: AppColors.textSubLight,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+                decoration: onTap != null ? TextDecoration.underline : null,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onBackground,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

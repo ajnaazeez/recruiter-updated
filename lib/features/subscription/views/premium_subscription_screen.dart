@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +21,7 @@ class PremiumSubscriptionScreen extends ConsumerStatefulWidget {
 
 class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionScreen> {
   bool _isLoading = false;
+  bool _isRestoring = false;
   int _selectedPlanIndex = 2;
 
   @override
@@ -28,6 +30,14 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
     // The trial is the first item only for eligible Android users.
     if (widget.includeTrial) {
       _selectedPlanIndex = 0;
+    }
+    _loadStoreKitProducts();
+  }
+
+  void _loadStoreKitProducts() async {
+    if (Platform.isIOS) {
+      await ref.read(subscriptionServiceProvider).fetchProductDetails();
+      if (mounted) setState(() {});
     }
   }
 
@@ -108,7 +118,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
                     borderRadius: BorderRadius.zero, // Sharp corners
                   ),
                 ),
-                onPressed: _isLoading
+                onPressed: (_isLoading || _isRestoring)
                     ? null
                     : () => _handleSubscribe(context, ref, plans),
                 child: _isLoading
@@ -121,7 +131,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
                         ),
                       )
                     : Text(
-                        'SUBSCRIBE - ₹${plans[_selectedPlanIndex].amountInRupees.toStringAsFixed(0)} / ${plans[_selectedPlanIndex].durationDisplay.toLowerCase()}',
+                        'SUBSCRIBE - ${ref.read(subscriptionServiceProvider).getPlanPriceDisplay(plans[_selectedPlanIndex])} / ${plans[_selectedPlanIndex].durationDisplay.toLowerCase()}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 16,
@@ -130,6 +140,47 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
                         textAlign: TextAlign.center,
                       ),
               ),
+
+              // Restore Purchases Button (Visible on iOS for Apple Guideline 3.1.1 compliance)
+              if (Theme.of(context).platform == TargetPlatform.iOS || Platform.isIOS) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.primary,
+                    side: BorderSide(
+                      color: colorScheme.primary.withOpacity(0.6),
+                      width: 1.5,
+                    ),
+                    elevation: 0,
+                    minimumSize: const Size(double.infinity, 52),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero,
+                    ),
+                  ),
+                  onPressed: (_isLoading || _isRestoring)
+                      ? null
+                      : () => _handleRestorePurchases(ref),
+                  icon: _isRestoring
+                      ? SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            color: colorScheme.primary,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.restore, size: 20),
+                  label: Text(
+                    _isRestoring ? 'RESTORING PURCHASES...' : 'RESTORE PURCHASES',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text(
                 'Recurring billing. Cancel anytime.',
@@ -347,7 +398,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
             ),
             const SizedBox(width: 8),
             Text(
-              '₹${plan.amountInRupees.toStringAsFixed(0)}',
+              ref.read(subscriptionServiceProvider).getPlanPriceDisplay(plan),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w900,
                 color: colorScheme.onSurface,
@@ -439,7 +490,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
               ),
               const SizedBox(width: 8),
               Text(
-                '₹${selectedPlan.amountInRupees.toStringAsFixed(0)}',
+                ref.read(subscriptionServiceProvider).getPlanPriceDisplay(selectedPlan),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: colorScheme.onSurface,
@@ -449,7 +500,7 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
           ),
           const Divider(height: 24, thickness: 1),
           Text(
-            'WHAT YOU WILL RECEIVE FOR ₹${selectedPlan.amountInRupees.toStringAsFixed(0)}:',
+            'WHAT YOU WILL RECEIVE FOR ${ref.read(subscriptionServiceProvider).getPlanPriceDisplay(selectedPlan)}:',
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: isDark ? AppColors.textSubDark : AppColors.textSubLight,
@@ -500,6 +551,8 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
     WidgetRef ref,
     List<SubscriptionPlan> plans,
   ) async {
+    if (_isLoading || _isRestoring) return;
+
     final selectedPlan = plans[_selectedPlanIndex];
 
     setState(() => _isLoading = true);
@@ -540,5 +593,56 @@ class _PremiumSubscriptionScreenState extends ConsumerState<PremiumSubscriptionS
         }
       },
     );
+  }
+
+  void _handleRestorePurchases(WidgetRef ref) async {
+    if (_isRestoring || _isLoading) return;
+
+    setState(() => _isRestoring = true);
+
+    try {
+      final subscriptionService = ref.read(subscriptionServiceProvider);
+
+      await subscriptionService.restorePurchases(
+        onResult: (success, message) {
+          if (!mounted) return;
+          setState(() => _isRestoring = false);
+
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.green,
+              ),
+            );
+            context.pop(); // Close premium screen on successful activation
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: message.contains('No previous purchases')
+                    ? Colors.orange.shade800
+                    : Colors.red,
+              ),
+            );
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('Restore purchases error in UI: $e');
+      if (mounted) {
+        setState(() => _isRestoring = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to restore purchases. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted && _isRestoring) {
+        setState(() => _isRestoring = false);
+      }
+    }
   }
 }

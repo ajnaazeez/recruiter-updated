@@ -111,6 +111,10 @@ class SubscriptionService {
 
   // Track the plan being purchased
   SubscriptionPlan? _currentPlan;
+  bool _isRestoring = false;
+  Function(bool success, String message)? _onRestoreResult;
+
+  bool get isRestoring => _isRestoring;
 
   void _initInAppPurchase() {
     final Stream<List<PurchaseDetails>> purchaseUpdated =
@@ -134,20 +138,92 @@ class SubscriptionService {
         _onPaymentResult?.call(false, 'Purchase is pending...');
       } else if (purchaseDetails.status == PurchaseStatus.error) {
         debugPrint('IAP Purchase Error: ${purchaseDetails.error}');
-        _onPaymentResult?.call(
-          false,
-          'Purchase failed: ${purchaseDetails.error?.message ?? "Unknown error"}',
-        );
+        if (_isRestoring && _onRestoreResult != null) {
+          final callback = _onRestoreResult;
+          _onRestoreResult = null;
+          _isRestoring = false;
+          callback?.call(
+            false,
+            'Unable to restore purchases. Please try again.',
+          );
+        } else {
+          _onPaymentResult?.call(
+            false,
+            'Purchase failed. Please try again.',
+          );
+        }
         if (purchaseDetails.pendingCompletePurchase) {
           await InAppPurchase.instance.completePurchase(purchaseDetails);
         }
       } else if (purchaseDetails.status == PurchaseStatus.canceled) {
-        _onPaymentResult?.call(false, 'Purchase cancelled by user.');
+        if (_isRestoring && _onRestoreResult != null) {
+          final callback = _onRestoreResult;
+          _onRestoreResult = null;
+          _isRestoring = false;
+          callback?.call(false, 'Restore cancelled by user.');
+        } else {
+          _onPaymentResult?.call(false, 'Purchase cancelled by user.');
+        }
         if (purchaseDetails.pendingCompletePurchase) {
           await InAppPurchase.instance.completePurchase(purchaseDetails);
         }
-      } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-                 purchaseDetails.status == PurchaseStatus.restored) {
+      } else if (purchaseDetails.status == PurchaseStatus.restored) {
+        final plan = _getPlanByStoreKitId(purchaseDetails.productID);
+        if (plan != null) {
+          try {
+            await _activateAppleSubscription(purchaseDetails.purchaseID, plan);
+            if (_isRestoring && _onRestoreResult != null) {
+              final callback = _onRestoreResult;
+              _onRestoreResult = null;
+              _isRestoring = false;
+              callback?.call(
+                true,
+                'Purchases restored successfully. Premium subscription activated.',
+              );
+            } else {
+              _onPaymentResult?.call(
+                true,
+                'Purchases restored successfully. Premium subscription activated.',
+              );
+            }
+          } catch (e) {
+            debugPrint('Error activating restored Apple subscription: $e');
+            if (_isRestoring && _onRestoreResult != null) {
+              final callback = _onRestoreResult;
+              _onRestoreResult = null;
+              _isRestoring = false;
+              callback?.call(
+                false,
+                'Unable to restore purchases. Please try again.',
+              );
+            } else {
+              _onPaymentResult?.call(
+                false,
+                'Subscription restored but activation failed. Please contact support.',
+              );
+            }
+          }
+        } else {
+          debugPrint('Restored product ${purchaseDetails.productID} not matched to plan');
+          if (_isRestoring && _onRestoreResult != null) {
+            final callback = _onRestoreResult;
+            _onRestoreResult = null;
+            _isRestoring = false;
+            callback?.call(
+              false,
+              'Restored purchase found, but matching plan was not recognized.',
+            );
+          } else {
+            _onPaymentResult?.call(
+              false,
+              'Restored purchase found, but matching plan was not recognized.',
+            );
+          }
+        }
+        if (purchaseDetails.pendingCompletePurchase) {
+          await InAppPurchase.instance.completePurchase(purchaseDetails);
+        }
+      } else if (purchaseDetails.status == PurchaseStatus.purchased) {
         final plan = _currentPlan ?? _getPlanByStoreKitId(purchaseDetails.productID);
         if (plan != null) {
           try {
@@ -157,9 +233,10 @@ class SubscriptionService {
               'Purchase successful! Premium subscription activated.',
             );
           } catch (e) {
+            debugPrint('Error activating Apple subscription: $e');
             _onPaymentResult?.call(
               false,
-              'Purchase successful but activation failed: $e',
+              'Purchase successful but activation failed. Please contact support.',
             );
           }
         } else {
@@ -173,6 +250,97 @@ class SubscriptionService {
         }
       }
     }
+  }
+
+  /// Manually restores completed StoreKit purchases on iOS.
+  Future<void> restorePurchases({
+    required Function(bool success, String message) onResult,
+  }) async {
+    if (!Platform.isIOS) {
+      onResult(false, 'Restore Purchases is only available on iOS.');
+      return;
+    }
+
+    if (_isRestoring) {
+      onResult(false, 'Restore is already in progress. Please wait.');
+      return;
+    }
+
+    _isRestoring = true;
+    _onRestoreResult = onResult;
+
+    try {
+      final bool available = await InAppPurchase.instance.isAvailable();
+      if (!available) {
+        _isRestoring = false;
+        _onRestoreResult = null;
+        onResult(
+          false,
+          'In-App Purchases are currently unavailable on this device.',
+        );
+        return;
+      }
+
+      await InAppPurchase.instance.restorePurchases();
+
+      // Allow a reasonable grace period for StoreKit to deliver restored transactions
+      // through the purchaseStream before concluding that no purchases exist.
+      await Future.delayed(const Duration(milliseconds: 2500));
+
+      if (_isRestoring && _onRestoreResult != null) {
+        final callback = _onRestoreResult;
+        _onRestoreResult = null;
+        _isRestoring = false;
+        callback?.call(false, 'No previous purchases found.');
+      }
+    } catch (e) {
+      debugPrint('Error during StoreKit restorePurchases: $e');
+      if (_isRestoring && _onRestoreResult != null) {
+        final callback = _onRestoreResult;
+        _onRestoreResult = null;
+        _isRestoring = false;
+        callback?.call(
+          false,
+          'Unable to restore purchases. Please try again.',
+        );
+      }
+    } finally {
+      _isRestoring = false;
+      _onRestoreResult = null;
+    }
+  }
+
+  Map<String, ProductDetails> _storeKitProductDetails = {};
+  Map<String, ProductDetails> get storeKitProductDetails => _storeKitProductDetails;
+
+  /// Loads dynamic StoreKit product details (including localized pricing and currency).
+  Future<void> fetchProductDetails() async {
+    if (!Platform.isIOS) return;
+    try {
+      final available = await InAppPurchase.instance.isAvailable();
+      if (!available) return;
+
+      final storeKitIds = SubscriptionConfig.planStoreKitIds.values.toSet();
+      final response = await InAppPurchase.instance.queryProductDetails(storeKitIds);
+      if (response.productDetails.isNotEmpty) {
+        _storeKitProductDetails = {
+          for (var p in response.productDetails) p.id: p,
+        };
+      }
+    } catch (e) {
+      debugPrint('Error loading StoreKit product details: $e');
+    }
+  }
+
+  /// Returns localized StoreKit price on iOS if available, otherwise returns fallback rupee price.
+  String getPlanPriceDisplay(SubscriptionPlan plan) {
+    if (Platform.isIOS) {
+      final storeKitId = SubscriptionConfig.getStoreKitProductId(plan.id);
+      if (storeKitId != null && _storeKitProductDetails.containsKey(storeKitId)) {
+        return _storeKitProductDetails[storeKitId]!.price;
+      }
+    }
+    return '₹${plan.amountInRupees.toStringAsFixed(0)}';
   }
 
   SubscriptionPlan? _getPlanByStoreKitId(String storeKitId) {

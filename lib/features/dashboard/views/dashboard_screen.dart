@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -36,13 +37,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider.notifier).currentUser;
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS || Platform.isIOS;
 
     ref.listen(
       recruiterProfileProvider(user?.uid ?? ''),
       (previous, next) {
         if (!_hasShownTrialOffer && next.hasValue && next.value != null) {
           final profile = next.value!;
-          if (profile.subscriptionPlanId == null) {
+          if (!isIOS && profile.subscriptionPlanId == null) {
             _hasShownTrialOffer = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
